@@ -1,0 +1,33 @@
+#+TITLE: Installing archlinux with encrypted disk
+#+DATE:2016-12-03
+#+STARTUP:showeverything
+
+* Preparation
+
+** Download archlinux
+Archlinux can be downloaded from [[https://www.archlinux.org/download/][archlinux.org]], either a BitTorrent
+download or a direct HTTP download. Once downloaded, the download's
+integrity should be verified. For this the signature also has to be
+downloaded, e.g. [[https://www.archlinux.org/iso/2016.12.01/archlinux-2016.12.01-dual.iso.sig][archlinux-2016.12.01-dual.iso.sig]] (of the same file
+ofcourse). Once both the download and the signature reside in the same
+directory, verification can be done like so:
+#+BEGIN_SRC shell
+$ gpg --keyserver-options auto-key-retrieve --verify archlinux-<version>-dual.iso.sig
+#+END_SRC
+
+Note that this command gave me a failed verification with a warning on
+Debian Jessie, because of not being able to find the public key. I
+guess the auto-key-retrieve on Debian doesn't work like it does on Arch.
+
+Or, if you're already running Arch, you can do:
+#+BEGIN_SRC shell
+pacman-key -v archlinux-<version>-dual.iso.sig
+#+END_SRC
+
+** Prepare installation media
+The location of your USB drive can be determined by =dmesg= (right
+after insterting it) or by =lsblk=.
+#+BEGIN_SRC shell
+# dd bs=4M if=/path/to/archlinux.iso of=/dev/sdx status=progress && sync
+#+END_SRC
+
