@@ -212,3 +212,47 @@ Make a file =/etc/locale.conf= with content =LANG\=en_US.UTF-8=.
 
 Create hostname in =/etc/hostname=. I'm choosing =macbookarch=.
 Maybe add: "127.0.1.1   macbookarch.localdomain   macbookarch"
+
+*** mkinitcpio
+Now we have to modify the mkinitcpio config, since we're using lvm and
+encryption. Edit =/etc/mkinitcpio.conf= and add =encrypt= and =lvm2=
+to the =HOOKS= defintion.
+
+Now we have to add a kernel parameter in the grub config, so the
+parameter will always be loaded upon boot. We edit =/etc/default/grub=
+and after that generate a new =grub.cfg=.
+
+It seems that grub wasn't installed yet, let's install it now:
+#+BEGIN_SRC shell
+# pacman -S grub
+#+END_SRC
+
+Add the following kernel parameters to the
+=GRUB_CMDLINE_LINUX_DEFAULT= line:
+#+BEGIN_SRC shell
+cryptdevice=UUID=your-crypt-luks-container-id:lvm
+root=/dev/mapper/macbookair--vg-root
+#+END_SRC
+
+To find out the id of the LUKS container, you can do:
+#+BEGIN_SRC shell
+# ls -l /dev/disk/by-id | grep CRYPT
+#+END_SRC
+
+Now regenerate the new grub config:
+#+BEGIN_SRC shell
+# grub-mkconfig -o /boot/grub/grub.cfg
+#+END_SRC
+
+I got a lot of warnings, ``Failed to connect to lvmetad'', don't think
+it's a problem though.
+
+Now we're ready to create a new /initramfs/:
+#+BEGIN_SRC shell
+# mkinitcpio -p linux
+#+END_SRC
+
+Set the root passwd:
+#+BEGIN_SRC shell
+# passwd
+#+END_SRC
