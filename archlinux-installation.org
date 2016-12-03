@@ -38,3 +38,44 @@ after insterting it) or by =lsblk=.
 
 The =sync= is there to make sure all data is written to the drive
 prior to removing it from your computer.
+
+* Booting from the installation media
+So the USB drive has been prepared, so connect it to the MacBook Air
+and power cycle the laptop. Just before the mac is booting you must
+press the right 'option' key (alt) until the boot menu is shown. It
+should at least show your normal `Macintosh HD' and an extra `EFI
+Boot', the latter being the Arch Linux installer. Select it using the
+arrow keys and press =enter=. Arch will boot!
+
+After a few seconds a shell is shown, I'm automatically logged into
+the installer as =root=. Since we're on Mac, it should have booted in
+EFI mode, lets check:
+#+BEGIN_SRC shell
+# ls /sys/firmware/efi/efivars
+#+END_SRC
+
+If this directory doens't exist, it'll have booted in BIOS mode.
+
+The Arch Linux wiki now suggests working on the network configuration,
+but since I'm on wifi on a Mac, I prefer to do that later.
+
+** Partition the USB drive
+Now I'm going to prepare the USB drive that I'm going to use for
+Arch. It's a 64GB SanDisk Extreme drive, connected via USB 3.0, it
+won't be as fast as the Mac's internal SSD but that's ok.
+
+The Arch Linux wiki has a lot of information on disk encryption, check
+[[https://wiki.archlinux.org/index.php/Disk_encryption][here]]. I'm going to use dm-crypt together with LVM. There are basically
+two ways to go about this:
+- install LVM on top of the encryption layer.
+- create an encyption layer on top of LVM.
+Since I'm using a single USB drive on which Arch is going to be
+installed, I'll choose the somewhat easer approach (the first one). 
+
+The following partitions will be put on the drive:
+- EFI System Partition (ESP) [512M]
+- Linux filesystem [1G, /boot]
+- LVM [62G]
+  - swap [4G]
+  - root [58G]
+
