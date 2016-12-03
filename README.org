@@ -1,0 +1,4 @@
+#+TITLE:Arch Linux notes
+
+This is a collection of notes taken when doing stuff with Arch Linux,
+such as installing, configuring, etc.
