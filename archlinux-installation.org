@@ -2,6 +2,11 @@
 #+DATE:2016-12-03
 #+STARTUP:showeverything
 
+* Introduction
+This is a small manual for installing Arch Linux. In this manual Arch
+will be installed on a separate USB drive for booting Arch Linux on a
+MacBook Air (without touching the internal disk).
+
 * Preparation
 
 ** Download archlinux
@@ -31,3 +36,5 @@ after insterting it) or by =lsblk=.
 # dd bs=4M if=/path/to/archlinux.iso of=/dev/sdx status=progress && sync
 #+END_SRC
 
+The =sync= is there to make sure all data is written to the drive
+prior to removing it from your computer.
