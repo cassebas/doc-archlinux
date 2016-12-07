@@ -7,6 +7,11 @@ This is a small manual for installing Arch Linux. In this manual Arch
 will be installed on a separate USB drive for booting Arch Linux on a
 MacBook Air (without touching the internal disk).
 
+Note that the Arch Linux wiki contains a whole lot more information
+and explanations for choices that can be made. This simple document
+only describes the installation for a particular set of choices that
+have already been made.
+
 * Preparation
 
 ** Download archlinux
@@ -65,54 +70,58 @@ Arch. It's a 64GB SanDisk Extreme drive, connected via USB 3.0, it
 won't be as fast as the Mac's internal SSD but that's ok.
 
 The Arch Linux wiki has a lot of information on disk encryption, check
-[[https://wiki.archlinux.org/index.php/Disk_encryption][here]]. I'm going to use dm-crypt together with LVM. There are basically
-two ways to go about this:
+[[https://wiki.archlinux.org/index.php/Disk_encryption][here]]. I'm going to use dm-crypt/LUKS together with LVM. There are
+basically two ways to go about this:
 1. install LVM on top of the encryption layer.
 2. create an encyption layer on top of LVM.
 Since I'm using a single USB drive on which Arch is going to be
 installed, I'll choose the somewhat easer approach (the first one). 
 
 The following partitions will be put on the drive:
-- EFI System Partition (ESP) [512M]
-- Linux filesystem [1G, /boot]
-- LVM [57G]
+- EFI System Partition (ESP) [1G, /boot]
+- LVM [58G]
   - swap [4G]
-  - root [53G]
+  - root [54G]
 
-I use gdisk for the partitioning.
+I use gdisk for the partitioning. After inserting the USB stick, you
+may want to verify to which device the target disk is mapped. Again,
+find out by =lsblk= or =gdisk -l=.
+
+In my case the device is =/dev/sdd=. I'm using =gdisk=, because I want
+to use a GPT partition table:
 #+BEGIN_SRC shell
-# gdisk /dev/sdb
+# gdisk /dev/sdd
 #+END_SRC
 
 Create the partitions, in my case the result is:
-| Number | Start (sector) | End (sector) | Size       | Code | Name             |
-|--------+----------------+--------------+------------+------+------------------|
-|      1 |             34 |      1048609 | 512.0 MiB  | EF00 | EFI System       |
-|      2 |        1048610 |      3145761 | 1024.0 MiB | 8300 | Linux filesystem |
-|      3 |        3145762 |    122544482 | 56.9 GiB   | 8E00 | Linux LVM        |
+| Number | Start (sector) | End (sector) | Size       | Code | Name       |
+|--------+----------------+--------------+------------+------+------------|
+|      1 |             34 |      2097185 | 1024.0 MiB | EF00 | EFI System |
+|      3 |        2097186 |    122544482 | 57.4 GiB   | 8E00 | Linux LVM  |
 
 The EFI System partition has to be formatted as FAT32. Do this like so:
 
 #+BEGIN_SRC shell
-# mkfs.fat -F32 /dev/sdb1
+# mkfs.fat -F32 /dev/sdd1
 #+END_SRC
 
 The Arch Linux [[https://wiki.archlinux.org/index.php/EFI_System_Partition][wiki]] talks about [[https://wiki.archlinux.org/index.php/EFISTUB][EFISTUB]] under the `Mount the
 partition' heading. To my understanding this is an alternative to a
-/conventional/ bootloader like =grub=. I'll not use it, so I won't be
-mounting the ESP partition directly to =/boot=.
+/conventional/ bootloader like =grub=, where the kernel can be loaded
+as an EFI executable. In my setup I'll still use a bootloader and for
+an easier installation I'll mount the ESP to =/boot=.
 
 Now we can create the LVM on LUKS setup. First we prepare the
 disk. The following command *irrevocably erases* data on the partition:
 #+BEGIN_SRC shell
-# cryptsetup luksFormat /dev/sdb3
+# cryptsetup luksFormat /dev/sdd2
 #+END_SRC
 
 Enter a [[https://wiki.archlinux.org/index.php/Security#Passwords][strong]] passphrase.
 
 Now open the container:
 #+BEGIN_SRC shell
-# cryptsetup open --type luks /dev/sdb3 lvm
+# cryptsetup open --type luks /dev/sdd2 lvm
 #+END_SRC
 The decrypted container should now be available under
 =/dev/mapper/lvm=.
@@ -124,39 +133,34 @@ The decrypted container should now be available under
 It should say ``Physical volume "/dev/mapper/lvm" successfully
 created.'' Now create a volume group:
 #+BEGIN_SRC shell
-# vgcreate macbookair-vg /dev/mapper/lvm
+# vgcreate archbook-vg /dev/mapper/lvm
 #+END_SRC
-It should say ``Volume group "macbookair-vg" successfully created''.
+It should say ``Volume group "archbook-vg" successfully created''.
 Create logical volumes:
 #+BEGIN_SRC shell
-# lvcreate -L 4G macbookair-vg -n swap
-# lvcreate -l 100%FREE macbookair-vg -n root
+# lvcreate -L 4G archbook-vg -n swap
+# lvcreate -l 100%FREE archbook-vg -n root
 #+END_SRC
-This will create a logical volume of 4G for swap and a 53G logical
+This will create a logical volume of 4G for swap and a 54G logical
 volume for the root. Note that my macbook has 8G RAM on board, so
 that's plenty most of the times. Therefore adding 4G to the virtual
 memory is more than enough (and I want to save some space on the flash
 drive).
 
-Format the second partition (that's going to be /boot) and the new
-logical volumes:
+Prepare the new logical volume and swap:
 #+BEGIN_SRC shell
-# mkfs.ext4 /dev/mapper/macbookair--vg-root
-# mkswap /dev/mapper/macbookair--vg-swap
+# mkfs.ext4 /dev/mapper/archbook--vg-root
+# mkswap /dev/mapper/archbook--vg-swap
 #+END_SRC
 
 Now mount the file systems:
 #+BEGIN_SRC shell
-# mount /dev/mapper/macbookair--vg-root /mnt
-# swapon /dev/mapper/macbookair--vg-swap
+# mount /dev/mapper/archbook--vg-root /mnt
+# mkdir /mnt/boot
+# mount /dev/sdd1 /mnt/boot
+# swapon /dev/mapper/archbook--vg-swap
 #+END_SRC
 
-Prepare the boot partition. This must be an =ext2= partition:
-#+BEGIN_SRC shell
-# mkfs.ext2 /dev/sdb2
-# mkdir /mnt/boot
-# mount /dev/sdb2 /mnt/boot
-#+END_SRC
 Now we can continue with the /normal/ installation procedure, until
 the =mkinitcpio= step.
 
@@ -218,34 +222,44 @@ Now we have to modify the mkinitcpio config, since we're using lvm and
 encryption. Edit =/etc/mkinitcpio.conf= and add =encrypt= and =lvm2=
 to the =HOOKS= defintion.
 
-Now we have to add a kernel parameter in the grub config, so the
-parameter will always be loaded upon boot. We edit =/etc/default/grub=
-and after that generate a new =grub.cfg=.
-
-It seems that grub wasn't installed yet, let's install it now:
+I'm choosing systemd-boot as a bootloader. Let's configure this one
+now. First, we must check if the =efivars= are loaded correctly. See
+[[https://wiki.archlinux.org/index.php/Unified_Extensible_Firmware_Interface#Requirements_for_UEFI_variable_support][here]] for what to check, in short (in the chroot'ed environment, I've
+booted again with the Arch Installer):
 #+BEGIN_SRC shell
-# pacman -S grub
+# ls -al /sys/firmware/efi/efivars
+# pacman -S efivar
+# efivar -l
 #+END_SRC
 
-Add the following kernel parameters to the
-=GRUB_CMDLINE_LINUX_DEFAULT= line:
+The first command should list a non-empty directory, the latter should list the efi variables without warning. There are other requirements listed, see the Arch wiki for that.
+
+Install the =systemd= bootloader:
 #+BEGIN_SRC shell
-cryptdevice=UUID=your-crypt-luks-container-id:lvm
-root=/dev/mapper/macbookair--vg-root
+# bootctl --path=/boot install
 #+END_SRC
+Here =/boot= is the mountpoint for the ESP.
+
+Since the macbook runs an Intel processor, we have to install the
+Intel microcode.
+#+BEGIN_SRC shell
+# pacman -S intel-ucode
+#+END_SRC
+
+
+Make a boot entry for booting into Arch:
+#+BEGIN_VERBOSE
+title Arch Linux Encrypted LVM
+linux /vmlinuz-linux
+initrd /init-ucode.img
+initrd /initramfs-linux.img
+options cryptdevice=UUID=<UUID>:archbook--vg root=/dev/mapper/archbook--vg-root quiet rw
+#+END_VERBOSE
 
 To find out the id of the LUKS container, you can do:
 #+BEGIN_SRC shell
 # ls -l /dev/disk/by-id | grep CRYPT
 #+END_SRC
-
-Now regenerate the new grub config:
-#+BEGIN_SRC shell
-# grub-mkconfig -o /boot/grub/grub.cfg
-#+END_SRC
-
-I got a lot of warnings, ``Failed to connect to lvmetad'', don't think
-it's a problem though.
 
 Now we're ready to create a new /initramfs/:
 #+BEGIN_SRC shell
@@ -256,3 +270,14 @@ Set the root passwd:
 #+BEGIN_SRC shell
 # passwd
 #+END_SRC
+
+Now you're ready to reboot, fingers crossed:)
+#+BEGIN_SRC shell
+# exit
+# umount -R /mnt
+# shutdown -r now
+#+END_SRC
+
+If all went well, you can enter the passphrase after selecting the USB
+stick for booting, and then Arch boots and greets you with a login
+prompt.
