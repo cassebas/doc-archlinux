@@ -281,3 +281,14 @@ Now you're ready to reboot, fingers crossed:)
 If all went well, you can enter the passphrase after selecting the USB
 stick for booting, and then Arch boots and greets you with a login
 prompt.
+
+* Post installation steps
+Make sure that the dhcpcd service is started after booting:
+#+BEGIN_SRC shell
+# systemctl enable dhcpcd@ens9.service
+#+END_SRC
+Here =ens9= is the name of the network interface that I'm using (the
+thunderbolt Ethernet adapter). Find out by:
+#+BEGIN_SRC shell
+# ip link
+#+END_SRC
