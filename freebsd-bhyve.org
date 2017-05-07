@@ -1,0 +1,297 @@
+#+TITLE: FreeBSD + Bhyve + ArchLinux
+#+DATE: 2017-05-07
+#+STARTUP: showeverything
+
+* Introduction
+Small doc about making a small virtualization platform on a FreeBSD
+host with Bhyve. An Archlinux guest is the first virtual machine that
+I'll be using.
+
+I've used the information on the [[https://www.freebsd.org/doc/handbook/virtualization-host-bhyve.html][FreeBSD handbook]] page, as well as a
+Youtube video by [[https://www.youtube.com/watch?v=P_XtAdP0lvo][bufo333]].
+
+* Preparation
+Find out which kernel modules are currently loaded.
+#+BEGIN_SRC shell
+root@bellatrix:~ # kldstat 
+Id Refs Address            Size     Name
+ 1   36 0xffffffff80200000 17bcab8  kernel
+ 2    1 0xffffffff819bd000 2fc440   zfs.ko
+ 3    2 0xffffffff81cba000 6040     opensolaris.ko
+ 4    1 0xffffffff81cc1000 4a70     coretemp.ko
+ 5    1 0xffffffff81e11000 fdb4     geom_eli.ko
+ 6    2 0xffffffff81e21000 1f55e    crypto.ko
+ 7    1 0xffffffff81e41000 56c6     fdescfs.ko
+ 8    1 0xffffffff81e47000 358d     ums.ko
+ 9    1 0xffffffff81e4b000 2ba8     uhid.ko
+10    1 0xffffffff81e4e000 26cf     pflog.ko
+11    1 0xffffffff81e51000 32d6a    pf.ko
+12    1 0xffffffff81e84000 6f07     kgssapi_krb5.ko
+13    1 0xffffffff81e8b000 ee0a     kgssapi.ko
+14    1 0xffffffff81e9a000 80c      rc4.ko
+#+END_SRC
+
+The =vmm= module is not loaded, load it now:
+#+BEGIN_SRC shell
+root@bellatrix:~ # kldload vmm
+#+END_SRC
+
+Let's see if the module has been loaded.
+#+BEGIN_SRC shell
+root@bellatrix:~ # kldstat|grep vmm
+15    1 0xffffffff81e9b000 1b0c17   vmm.ko
+#+END_SRC
+
+For the virtual machine to have network access, a bridge interface
+is created. This will make the virtual machine available on the local
+network with its own ip. A =tap0= interface is created for the virtual
+machine, which is then bridged with (in my setup) =igb0=.
+#+BEGIN_SRC shell
+root@bellatrix:~ # ifconfig tap0 create
+root@bellatrix:~ # sysctl net.link.tap.up_on_open=1
+net.link.tap.up_on_open: 0 -> 1
+root@bellatrix:~ # ifconfig bridge0 create
+root@bellatrix:~ # ifconfig bridge0 addm igb0 addm tap0
+root@bellatrix:~ # ifconfig bridge0 up
+root@bellatrix:~ # ifconfig
+  ..
+  [snip]
+  ..
+tap0: flags=8902<BROADCAST,PROMISC,SIMPLEX,MULTICAST> metric 0 mtu 1500
+	options=80000<LINKSTATE>
+	ether 00:bd:2b:03:2f:00
+	nd6 options=29<PERFORMNUD,IFDISABLED,AUTO_LINKLOCAL>
+	media: Ethernet autoselect
+	status: no carrier
+bridge0: flags=8843<UP,BROADCAST,RUNNING,SIMPLEX,MULTICAST> metric 0 mtu 1500
+	ether 02:fe:4a:c8:9c:00
+	nd6 options=9<PERFORMNUD,IFDISABLED>
+	id 00:00:00:00:00:00 priority 32768 hellotime 2 fwddelay 15
+	maxage 20 holdcnt 6 proto rstp maxaddr 2000 timeout 1200
+	root id 00:00:00:00:00:00 priority 32768 ifcost 0 port 0
+	member: tap0 flags=143<LEARNING,DISCOVER,AUTOEDGE,AUTOPTP>
+	        ifmaxaddr 0 port 6 priority 128 path cost 2000000
+	member: igb0 flags=143<LEARNING,DISCOVER,AUTOEDGE,AUTOPTP>
+	        ifmaxaddr 0 port 1 priority 128 path cost 20000
+#+END_SRC
+
+* Create the virtual machine
+Since I have ZFS I'm going to create a special ZFS volume, instead of
+a disk image. I found an [[https://www.geeklan.co.uk/?p=1521][explanation]] online about the =volmode=dev=
+option:
+``When creating the zvol, the volmode property on the zvol to “dev”
+i.e. ‘-o volmode=dev’. This prevents the host from sniffing
+partitions, which can result in the install failing.''
+
+A ZFS volume is a dataset that represents a block device, according to
+the Oracle ZFS manual.
+#+BEGIN_SRC shell
+root@bellatrix:~ # zfs create -V64G -o volmode=dev data/archvmdisk0
+root@bellatrix:~ # zfs list
+NAME                      USED  AVAIL  REFER  MOUNTPOINT
+data                     2.89T  7.60T  86.9M  /data
+data/archvmdisk0         66.0G  7.66T   128K  -
+  ..
+  [snip]
+  ..
+#+END_SRC
+
+The FreeBSD manual says that for Linux hosts we have to install the
+=sysutils/grub2-bhyve= /port/. But it's also available as a package so
+I'll install the package instead.
+
+#+BEGIN_SRC shell
+root@bellatrix:/usr/ports/sysutils/grub2-bhyve # pkg install grub2-bhyve
+Updating FreeBSD repository catalogue...
+FreeBSD repository is up to date.
+All repositories are up to date.
+Updating database digests format: 100%
+The following 1 package(s) will be affected (of 0 checked):
+
+New packages to be INSTALLED:
+	grub2-bhyve: 0.40_2
+
+Number of packages to be installed: 1
+
+The process will require 1 MiB more space.
+409 KiB to be downloaded.
+
+Proceed with this action? [y/N]: y
+[1/1] Fetching grub2-bhyve-0.40_2.txz: 100%  409 KiB 418.4kB/s    00:01    
+Checking integrity... done (0 conflicting)
+[1/1] Installing grub2-bhyve-0.40_2...
+Extracting grub2-bhyve-0.40_2: 100%
+#+END_SRC
+
+Next I'm going to create a =device.map= file for the virtual
+machine. I have to find a location for this config to be located, for
+now I'm just going to put this in =/data=, but I may in the end make a
+special ZFS filesystem for this. The FreeBSD manual isn't clear on how
+to do this best.
+
+#+BEGIN_SRC shell
+root@bellatrix:/data # mkdir -p vms/archvm
+root@bellatrix:/data # cd vms/archvm/
+root@bellatrix:/data/vms/archvm # ls -al /dev/zvol/data/archvmdisk0 
+crw-r-----  1 root  operator  0x90 May  7 12:31 /dev/zvol/data/archvmdisk0
+root@bellatrix:/data/vms/archvm # echo '(hd0) /dev/zvol/data/archvmdisk0' >> device.map
+root@bellatrix:/data/vms/archvm # mkdir iso
+root@bellatrix:/data/vms/archvm # wget -O iso/archlinux20170501.iso http://ftp.snt.utwente.nl/pub/os/linux/archlinux/iso/2017.05.01/archlinux-2017.05.01-x86_64.iso
+--2017-05-07 13:10:39--  http://ftp.snt.utwente.nl/pub/os/linux/archlinux/iso/2017.05.01/archlinux-2017.05.01-x86_64.iso
+  ..
+  [snip]
+  ..
+2017-05-07 13:12:15 (5.01 MB/s) - 'iso/archlinux20170501.iso' saved [504365056/504365056]
+
+root@bellatrix:/data/vms/archvm # ls -al iso/
+total 493040
+drwxr-xr-x  2 root  wheel          3 May  7 13:10 .
+drwxr-xr-x  3 root  wheel          4 May  7 13:07 ..
+-rw-r--r--  1 root  wheel  504365056 May  1 09:05 archlinux20170501.iso
+root@bellatrix:/data/vms/archvm # echo '(cd0) iso/archlinux20170501.iso' >> device.map
+root@bellatrix:/data/vms/archvm # cat device.map 
+(hd0) /dev/zvol/data/archvmdisk0
+(cd0) iso/archlinux20170501.iso
+#+END_SRC
+
+Now load the linux kernel from the downloaded ISO image:
+#+BEGIN_SRC shell
+root@bellatrix:/data/vms/archvm # grub-bhyve -m device.map -r cd0 -M 1024M archvm
+grub> ls (cd0)/        
+arch/ EFI/ isolinux/ loader/
+grub> ls (cd0)/arch/boot/x86_64/
+archiso.img vmlinuz
+grub> linux (cd0)/arch/boot/x86_64/vmlinuz
+grub> initrd (cd0)/arch/boot/x86_64/archiso.img 
+grub> boot
+
+#+END_SRC
+
+This brings me back to the terminal with the linux kernel loaded. Now
+the guest can be started:
+#+BEGIN_SRC shell
+root@bellatrix:/data/vms/archvm # bhyve -A -H -P -s 0:0,hostbridge -s 1:0,lpc -s 2:0,virtio-net,tap0 \
+? -s3:0,virtio-blk,/dev/zvol/data/archvmdisk0 -l com1,stdio -c 4 -m 1024 archvm
+rdmsr to register 0x34 on vcpu 0
+                                [    3.575396] ACPI Error: Could not enable RealTimeClock event (20160930/evxfevnt-212)
+:: running early hook [udev]
+starting version 232
+:: running early hook [archiso_pxe_nbd]
+:: running hook [udev]
+:: Triggering uevents...
+:: running hook [memdisk]
+:: running hook [archiso]
+:: running hook [archiso_loop_mnt]
+:: running hook [archiso_pxe_common]
+:: running hook [archiso_pxe_nbd]
+:: running hook [archiso_pxe_http]
+:: running hook [archiso_pxe_nfs]
+:: Mounting '/dev/disk/by-label/' to '/run/archiso/bootmnt'
+Waiting 30 seconds for device /dev/disk/by-label/ ...
+ERROR: '/dev/disk/by-label/' device did not show up after 30 seconds...
+   Falling back to interactive prompt
+   You can try to fix the problem manually, log out when you are finished
+sh: can't access tty; job control turned off
+[rootfs ]# Assertion failed: (error == 0), function emulate_inout, file /usr/src/usr.sbin/bhyve/inout.c, line 230.
+          Abort (core dumped)
+                             root@bellatrix:/data/vms/archvm # 
+root@bellatrix:/data/vms/archvm # 
+
+#+END_SRC
+
+That didn't work out well, I had to destroy the running bhyve instance
+from another terminal (so next time I'll wrap the bhyve command within
+a tmux session).
+#+BEGIN_SRC shell
+root@bellatrix:/data/vms/archvm # pkg search bhyve-firmware
+bhyve-firmware-1.0             Collection of Firmware for bhyve
+root@bellatrix:/data/vms/archvm # pkg install bhyve-firmware
+Updating FreeBSD repository catalogue...
+FreeBSD repository is up to date.
+All repositories are up to date.
+The following 6 package(s) will be affected (of 0 checked):
+
+New packages to be INSTALLED:
+        bhyve-firmware: 1.0
+        uefi-edk2-bhyve-csm: 20160704_1
+        gcc48: 4.8.5_1
+        mpc: 1.0.3
+        gcc-ecj: 4.5
+        uefi-edk2-bhyve: 20160704_1
+
+Number of packages to be installed: 6
+
+The process will require 359 MiB more space.
+72 MiB to be downloaded.
+
+Proceed with this action? [y/N]: y
+[1/6] Fetching bhyve-firmware-1.0.txz: 100%    500 B   0.5kB/s    00:01    
+[2/6] Fetching uefi-edk2-bhyve-csm-20160704_1.txz: 100%  753 KiB 771.2kB/s    00:01    
+[3/6] Fetching gcc48-4.8.5_1.txz: 100%   69 MiB   5.6MB/s    00:13    
+[4/6] Fetching mpc-1.0.3.txz: 100%   71 KiB  73.0kB/s    00:01    
+[5/6] Fetching gcc-ecj-4.5.txz: 100%    1 MiB   1.4MB/s    00:01    
+[6/6] Fetching uefi-edk2-bhyve-20160704_1.txz: 100%  732 KiB 750.0kB/s    00:01    
+Checking integrity... done (0 conflicting)
+[1/6] Installing mpc-1.0.3...
+[1/6] Extracting mpc-1.0.3: 100%
+[2/6] Installing gcc-ecj-4.5...
+[2/6] Extracting gcc-ecj-4.5: 100%
+[3/6] Installing gcc48-4.8.5_1...
+[3/6] Extracting gcc48-4.8.5_1: 100%
+[4/6] Installing uefi-edk2-bhyve-csm-20160704_1...
+[4/6] Extracting uefi-edk2-bhyve-csm-20160704_1: 100%
+[5/6] Installing uefi-edk2-bhyve-20160704_1...
+[5/6] Extracting uefi-edk2-bhyve-20160704_1: 100%
+[6/6] Installing bhyve-firmware-1.0...
+Message from gcc48-4.8.5_1:
+To ensure binaries built with this toolchain find appropriate versions
+of the necessary run-time libraries, you may want to link using
+
+  -Wl,-rpath=/usr/local/lib/gcc48
+
+For ports leveraging USE_GCC, USES=compiler, or USES=fortran this happens
+transparently.
+
+#+END_SRC
+
+Next attempt:
+#+BEGIN_SRC shell
+root@bellatrix:/data/vms/archvm # bhyve -A -H -P \
+? -s 1:0,lpc \
+? -s 2:0,virtio-net,tap0 \
+? -s 3:0,virtio-blk,/dev/zvol/data/archvmdisk0 \
+? -s 4:0,ahci-cd,iso/archlinux20170501.iso \
+? -c 1 \
+? -m 1024M \
+? -l bootrom,/usr/local/share/uefi-firmware/BHYVE_UEFI.fd \
+? archvm
+rdmsr to register 0x34 on vcpu 0
+#+END_SRC
+
+It seems to be hanging:(
+
+I noticed the com1 missing, let's try a different console anyhow using
+a null modem device.
+#+BEGIN_SRC shell
+root@bellatrix:~ # kldload nmdm
+root@bellatrix:~ # kldstat |grep nmdm
+19    1 0xffffffff82062000 2ee1     nmdm.ko
+#+END_SRC
+
+New attempt....
+#+BEGIN_SRC grub
+
+                                         GNU GRUB  version 2.00
+
+   Minimal BASH-like line editing is supported. For the first word, TAB lists possible command
+   completions. Anywhere else TAB lists possible device or file completions.
+
+
+grub> ls 
+(hd0) (cd0) (cd0,msdos2) (host)
+grub> ls (cd0)/arch/boot/x86_64/
+archiso.img vmlinuz
+grub> linux (cd0)/arch/boot/x86_64/vmlinuz 
+grub> initrd (cd0)/arch/boot/x86_64/archiso.img
+grub> boot
+#+END_SRC
