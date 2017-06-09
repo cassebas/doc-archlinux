@@ -1,4 +1,4 @@
-#+TITLE: Installing archlinux with encrypted disk
+#+TITLE: Installing Arch Linux with encrypted disk
 #+DATE:2016-12-03
 #+STARTUP:showeverything
 
@@ -14,8 +14,8 @@ have already been made.
 
 * Preparation
 
-** Download archlinux
-Archlinux can be downloaded from [[https://www.archlinux.org/download/][archlinux.org]], either a BitTorrent
+** Download Arch Linux
+Arch Linux can be downloaded from [[https://www.archlinux.org/download/][archlinux.org]], either a BitTorrent
 download or a direct HTTP download. Once downloaded, the download's
 integrity should be verified. For this the signature also has to be
 downloaded, e.g. [[https://www.archlinux.org/iso/2016.12.01/archlinux-2016.12.01-dual.iso.sig][archlinux-2016.12.01-dual.iso.sig]] (of the same file
@@ -36,7 +36,7 @@ pacman-key -v archlinux-<version>-dual.iso.sig
 
 ** Prepare installation media
 The location of your USB drive can be determined by =dmesg= (right
-after insterting it) or by =lsblk=.
+after inserting it) or by =lsblk=.
 #+BEGIN_SRC shell
 # dd bs=4M if=/path/to/archlinux.iso of=/dev/sdx status=progress && sync
 #+END_SRC
@@ -59,23 +59,23 @@ EFI mode, lets check:
 # ls /sys/firmware/efi/efivars
 #+END_SRC
 
-If this directory doens't exist, it'll have booted in BIOS mode.
+If this directory doesn't exist, it'll have booted in BIOS mode.
 
 The Arch Linux wiki now suggests working on the network configuration,
-but since I'm on wifi on a Mac, I prefer to do that later.
+but since I'm on WiFi on a Mac, I prefer to do that later.
 
 ** Partition the USB drive
 Now I'm going to prepare the USB drive that I'm going to use for
 Arch. It's a 64GB SanDisk Extreme drive, connected via USB 3.0, it
-won't be as fast as the Mac's internal SSD but that's ok.
+won't be as fast as the Mac's internal SSD but that's OK.
 
 The Arch Linux wiki has a lot of information on disk encryption, check
 [[https://wiki.archlinux.org/index.php/Disk_encryption][here]]. I'm going to use dm-crypt/LUKS together with LVM. There are
 basically two ways to go about this:
 1. install LVM on top of the encryption layer.
-2. create an encyption layer on top of LVM.
+2. create an encryption layer on top of LVM.
 Since I'm using a single USB drive on which Arch is going to be
-installed, I'll choose the somewhat easer approach (the first one). 
+installed, I'll choose the somewhat easier approach (the first one).
 
 The following partitions will be put on the drive:
 - EFI System Partition (ESP) [1G, /boot]
@@ -83,7 +83,7 @@ The following partitions will be put on the drive:
   - swap [4G]
   - root [54G]
 
-I use gdisk for the partitioning. After inserting the USB stick, you
+I use =gdisk= for the partitioning. After inserting the USB stick, you
 may want to verify to which device the target disk is mapped. Again,
 find out by =lsblk= or =gdisk -l=.
 
@@ -107,8 +107,8 @@ The EFI System partition has to be formatted as FAT32. Do this like so:
 
 The Arch Linux [[https://wiki.archlinux.org/index.php/EFI_System_Partition][wiki]] talks about [[https://wiki.archlinux.org/index.php/EFISTUB][EFISTUB]] under the `Mount the
 partition' heading. To my understanding this is an alternative to a
-/conventional/ bootloader like =grub=, where the kernel can be loaded
-as an EFI executable. In my setup I'll still use a bootloader and for
+/conventional/ boot loader like =grub=, where the kernel can be loaded
+as an EFI executable. In my setup I'll still use a boot loader and for
 an easier installation I'll mount the ESP to =/boot=.
 
 Now we can create the LVM on LUKS setup. First we prepare the
@@ -142,7 +142,7 @@ Create logical volumes:
 # lvcreate -l 100%FREE archbook-vg -n root
 #+END_SRC
 This will create a logical volume of 4G for swap and a 54G logical
-volume for the root. Note that my macbook has 8G RAM on board, so
+volume for the root. Note that my MacBook has 8G RAM on board, so
 that's plenty most of the times. Therefore adding 4G to the virtual
 memory is more than enough (and I want to save some space on the flash
 drive).
@@ -165,7 +165,7 @@ Now we can continue with the /normal/ installation procedure, until
 the =mkinitcpio= step.
 
 Edit the =/etc/pacman.d/mirrorlist= and optionally move your closest
-mirrors to the top of the file. 
+mirrors to the top of the file.
 
 Now I'm pluggin' in a cable, hopefully I can get connected.! Wow, it
 works!! My Thunderbolt network adapter is automagically recognized:)
@@ -186,7 +186,7 @@ Make a new fstab:
 #+BEGIN_SRC shell
 # genfstab -U /mnt >> /mnt/etc/fstab
 #+END_SRC
-We should check the result for errors, it seems ok. Now we can
+We should check the result for errors, it seems OK. Now we can
 =chroot= into the system.
 #+BEGIN_SRC shell
 # arch-chroot /mnt
@@ -220,9 +220,9 @@ Maybe add: "127.0.1.1   macbookarch.localdomain   macbookarch"
 *** mkinitcpio
 Now we have to modify the mkinitcpio config, since we're using lvm and
 encryption. Edit =/etc/mkinitcpio.conf= and add =encrypt= and =lvm2=
-to the =HOOKS= defintion.
+to the =HOOKS= definition.
 
-I'm choosing systemd-boot as a bootloader. Let's configure this one
+I'm choosing systemd-boot as a boot loader. Let's configure this one
 now. First, we must check if the =efivars= are loaded correctly. See
 [[https://wiki.archlinux.org/index.php/Unified_Extensible_Firmware_Interface#Requirements_for_UEFI_variable_support][here]] for what to check, in short (in the chroot'ed environment, I've
 booted again with the Arch Installer):
@@ -234,13 +234,13 @@ booted again with the Arch Installer):
 
 The first command should list a non-empty directory, the latter should list the efi variables without warning. There are other requirements listed, see the Arch wiki for that.
 
-Install the =systemd= bootloader:
+Install the =systemd= boot loader:
 #+BEGIN_SRC shell
 # bootctl --path=/boot install
 #+END_SRC
-Here =/boot= is the mountpoint for the ESP.
+Here =/boot= is the mount point for the ESP.
 
-Since the macbook runs an Intel processor, we have to install the
+Since the MacBook runs an Intel processor, we have to install the
 Intel microcode.
 #+BEGIN_SRC shell
 # pacman -S intel-ucode
@@ -266,7 +266,7 @@ Now we're ready to create a new /initramfs/:
 # mkinitcpio -p linux
 #+END_SRC
 
-Set the root passwd:
+Set the root password:
 #+BEGIN_SRC shell
 # passwd
 #+END_SRC
