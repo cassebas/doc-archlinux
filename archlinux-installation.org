@@ -19,7 +19,7 @@ Archlinux can be downloaded from [[https://www.archlinux.org/download/][archlinu
 download or a direct HTTP download. Once downloaded, the download's
 integrity should be verified. For this the signature also has to be
 downloaded, e.g. [[https://www.archlinux.org/iso/2016.12.01/archlinux-2016.12.01-dual.iso.sig][archlinux-2016.12.01-dual.iso.sig]] (of the same file
-ofcourse). Once both the download and the signature reside in the same
+of course). Once both the download and the signature reside in the same
 directory, verification can be done like so:
 #+BEGIN_SRC shell
 $ gpg --keyserver-options auto-key-retrieve --verify archlinux-<version>-dual.iso.sig
