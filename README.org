@@ -2,3 +2,6 @@
 
 This is a collection of notes taken when doing stuff with Arch Linux,
 such as installing, configuring, etc.
+
+WARNING: the notes are, at present, not completely accurate. When time
+comes these notes will be updated and/or revised.
