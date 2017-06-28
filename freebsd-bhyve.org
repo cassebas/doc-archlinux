@@ -10,6 +10,9 @@ I'll be using.
 I've used the information on the [[https://www.freebsd.org/doc/handbook/virtualization-host-bhyve.html][FreeBSD handbook]] page, as well as a
 Youtube video by [[https://www.youtube.com/watch?v=P_XtAdP0lvo][bufo333]].
 
+WARNING: these notes must be updated, please read them with that
+notion in mind.
+
 * Preparation
 Find out which kernel modules are currently loaded.
 #+BEGIN_SRC shell

@@ -12,6 +12,9 @@ and explanations for choices that can be made. This simple document
 only describes the installation for a particular set of choices that
 have already been made.
 
+WARNING: these notes must be updated, please read them with that
+notion in mind.
+
 * Preparation
 
 ** Download Arch Linux
