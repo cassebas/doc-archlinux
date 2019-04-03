@@ -33,7 +33,7 @@ else
 		pkg=$2
 		echo "Updating (auto mode)" $pkg
 		auracle download $pkg
-		cd $pkg && makepkg -cris && cd ..
+		cd $pkg && makepkg -cris --noconfirm && cd ..
 		echo "Updated" $pkg
 		echo
 	fi
