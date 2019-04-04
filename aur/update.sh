@@ -3,7 +3,6 @@
 if [[ ($# != 1) && ($# != 2) ]]
 then
     echo "Usage: $0 ['auto'] <AUR package name>"
-	echo $#
 	exit 1
 fi
 
