@@ -16,9 +16,11 @@ then
 	if [[ $answer =~ ^[Yy]$ ]]
 	then
 		echo "Updating" $pkg
-		auracle download $pkg
+		auracle clone $pkg
 		cd $pkg && makepkg -cris && cd ..
 		echo "Updated" $pkg
+        # rename pkgdir
+        mv "$pkg" "$pkg-build-$(date +'%Y%m%d')"
 		echo
 	else
 		echo "Not updating" $pkg
